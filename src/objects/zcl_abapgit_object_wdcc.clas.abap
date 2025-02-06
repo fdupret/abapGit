@@ -9,9 +9,18 @@ CLASS zcl_abapgit_object_wdcc DEFINITION
     INTERFACES zif_abapgit_object .
   PROTECTED SECTION.
     METHODS after_import
+      IMPORTING
+        ii_log TYPE REF TO zif_abapgit_log
       RAISING
         zcx_abapgit_exception .
   PRIVATE SECTION.
+    TYPES:
+      ty_trlogm_tt TYPE STANDARD TABLE OF trlogm WITH DEFAULT KEY.
+
+    METHODS _log_trlogm_table
+      IMPORTING
+        ii_log    TYPE REF TO zif_abapgit_log
+        it_trlogm TYPE ty_trlogm_tt.
 ENDCLASS.
 
 
@@ -233,7 +242,7 @@ CLASS zcl_abapgit_object_wdcc IMPLEMENTATION.
 
     tadir_insert( iv_package ).
 
-    after_import( ).
+    after_import( ii_log = ii_log ).
 
     corr_insert( iv_package ).
 
@@ -243,7 +252,8 @@ CLASS zcl_abapgit_object_wdcc IMPLEMENTATION.
 
     DATA: lt_cts_object_entry TYPE STANDARD TABLE OF e071 WITH DEFAULT KEY,
           ls_cts_object_entry LIKE LINE OF lt_cts_object_entry,
-          lt_cts_key          TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY.
+          lt_cts_key          TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY,
+          lt_log              TYPE STANDARD TABLE OF trlogm WITH DEFAULT KEY.
 
     ls_cts_object_entry-pgmid    = 'R3TR'.
     ls_cts_object_entry-object   = ms_item-obj_type.
@@ -258,8 +268,37 @@ CLASS zcl_abapgit_object_wdcc IMPLEMENTATION.
         tt_e071       = lt_cts_object_entry
         tt_e071k      = lt_cts_key.
 
+    IMPORT lt_log = lt_log FROM MEMORY ID 'APPEND_LOG'.
+
+    _log_trlogm_table(
+      ii_log = ii_log
+      it_trlogm = lt_log ).
+
   ENDMETHOD.
 
+
+  METHOD _log_trlogm_table.
+
+    DATA ls_log TYPE trlogm.
+    DATA lv_message TYPE string.
+    DATA lv_msg_type TYPE syst_msgty.
+
+    LOOP AT it_trlogm INTO ls_log.
+      IF ls_log-severity IS INITIAL.
+        lv_msg_type = 'S'.
+      ELSE.
+        lv_msg_type = ls_log-severity.
+      ENDIF.
+      MESSAGE ID ls_log-ag TYPE lv_msg_type NUMBER ls_log-msgnr
+        WITH ls_log-var1 ls_log-var2 ls_log-var3 ls_log-var4 INTO lv_message.
+      ii_log->add(
+        iv_msg    = lv_message
+        iv_type   = sy-msgty
+        iv_class  = sy-msgid
+        iv_number = sy-msgno ).
+    ENDLOOP.
+
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~exists.
 
@@ -472,4 +511,5 @@ CLASS zcl_abapgit_object_wdcc IMPLEMENTATION.
     ENDIF.
 
   ENDMETHOD.
+
 ENDCLASS.
